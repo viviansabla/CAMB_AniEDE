@@ -8,11 +8,26 @@
     class(CAMBdata) :: this
     real(dl), intent(in) :: a
     real(dl) :: dtauda, grhoa2, grhov_t
+    ! AniEDE edit
+    real(dl) aede, grhoede0, grhoede, grhoLCDMat
 
     call this%CP%DarkEnergy%BackgroundDensityAndPressure(this%grhov, a, grhov_t)
 
+    ! AniEDE edit
+    if (a.lt.1.e-10_dl) then
+        aede = 1.e-10_dl
+    else
+        aede = a
+    end if 
+    
+    grhoLCDMat = this%grho_no_de(this%CP%at)/(this%CP%at**4._dl) + grhov_t/(this%CP%at**2._dl)
+    grhoede = this%CP%rphi*grhoLCDMat * ((this%CP%at/aede)**6._dl) * ( 2._dl/(1._dl+(this%CP%at/aede)**this%CP%n) )**(6._dl/this%CP%n)
+    !
+
     !  8*pi*G*rho*a**4.
-    grhoa2 = this%grho_no_de(a) +  grhov_t * a**2
+    ! AniEDE edit
+    grhoa2 = this%grho_no_de(a) +  grhov_t * a**2 + grhoede*a**4
+    !
     if (grhoa2 <= 0) then
         call GlobalError('Universe stops expanding before today (recollapse not supported)', error_unsupported_params)
         dtauda = 0
@@ -76,6 +91,8 @@
         integer g_ix !Index of the photon neutrino hierarchy
 
         integer q_ix !index into q_evolve array that gives the value q
+        integer ede_ix ! AniEDE edit 
+
         logical TransferOnly
 
         !       nvar  - number of scalar (tensor) equations for this k
@@ -549,6 +566,12 @@
     end if
     maxeq = maxeq +  (EV%lmaxg+1)+(EV%lmaxnr+1)+EV%lmaxgpol-1
 
+    ! AniEDE edit
+    EV%ede_ix=neq+1
+    neq=neq+3
+    maxeq=maxeq+3
+    !
+
     !Dark energy
     if (.not. CP%DarkEnergy%is_cosmological_constant) then
         EV%w_ix = neq + 1
@@ -642,6 +665,12 @@
 
     yout=0
     yout(1:basic_num_eqns) = y(1:basic_num_eqns)
+
+    ! AniEDE edit
+    yout(EVout%ede_ix) = y(EV%ede_ix)
+    yout(EVout%ede_ix+1) = y(EV%ede_ix+1)
+    yout(EVout%ede_ix+2) = y(EV%ede_ix+2)
+    !
 
     ! DarkEnergy
     if (CP%DarkEnergy%num_perturb_equations > 0) &
@@ -1930,6 +1959,12 @@
     y(EV%g_ix)=InitVec(i_clxg)
     y(EV%g_ix+1)=InitVec(i_qg)
 
+    ! AniEDE edit
+    y(EV%ede_ix) = 0.0_dl ! \delta
+    y(EV%ede_ix+1) = 0.0_dl ! (1+w) \theta/k
+    y(EV%ede_ix+2) = 0.0_dl ! \sigma
+    !
+
     ! DarkEnergy: This initializes also i_vq, when num_perturb_equations is set
     !             to 2.
     if (CP%DarkEnergy%num_perturb_equations > 0) then
@@ -2174,6 +2209,11 @@
     real(dl) ddopacity, visibility, dvisibility, ddvisibility, exptau, lenswindow
     real(dl) ISW, quadrupole_source, doppler, monopole_source, tau0, ang_dist
     real(dl) dgrho_de, dgq_de, cs2_de
+    ! AniEDE edit
+    real(dl) clxede, qede, piede, clxededot, qededot, piededot
+    real(dl) aede, grhoede, grhoede_t, weos, gpresede_t, grhoLCDMat
+    real(dl) wededot, ca2, dpdrho, weosp1
+    !
 
     k=EV%k_buf
     k2=EV%k2_buf
@@ -2201,6 +2241,19 @@
     grhor_t=State%grhornomass/a2
     grhog_t=State%grhog/a2
 
+    ! AniEDE edit
+    clxede = ay(EV%ede_ix)
+    qede = ay(EV%ede_ix+1)
+    piede = ay(EV%ede_ix+2)
+
+    weos = 2._dl/( 1._dl+(State%CP%at/a)**State%CP%n ) - 1._dl
+
+    grhoLCDMat = State%grho_no_de(State%CP%at)/(State%CP%at**4._dl) + State%grhov
+    grhoede = State%CP%rphi*grhoLCDMat * ((State%CP%at/a)**6._dl) * ( 2._dl/(1._dl+(State%CP%at/a)**State%CP%n) )**(6._dl/State%CP%n)
+    grhoede_t = grhoede*a2
+    gpresede_t = weos*grhoede_t 
+    !
+
     if (EV%is_cosmological_constant) then
         grhov_t = State%grhov * a2
         w_dark_energy_t = -1_dl
@@ -2210,9 +2263,11 @@
 
     !total perturbations: matter terms first, then add massive nu, de and radiation
     !  8*pi*a*a*SUM[rho_i*clx_i]
-    dgrho_matter=grhob_t*clxb+grhoc_t*clxc
+    ! AniEDE edit
+    dgrho_matter=grhob_t*clxb+grhoc_t*clxc + grhoede_t*clxede
     !  8*pi*a*a*SUM[(rho_i+p_i)*v_i]
-    dgq=grhob_t*vb
+    dgq=grhob_t*vb + grhoede_t*qede
+    !
 
     gpres_nu=0
     grhonu_t=0
@@ -2222,8 +2277,9 @@
     end if
 
     grho_matter=grhonu_t+grhob_t+grhoc_t
-    grho = grho_matter+grhor_t+grhog_t+grhov_t
-    gpres_noDE = gpres_nu + (grhor_t + grhog_t)/3
+    ! AniEDE edit
+    grho = grho_matter+grhor_t+grhog_t+grhov_t + grhoede_t
+    gpres_noDE = gpres_nu + (grhor_t + grhog_t)/3 + gpresede_t
 
     if (State%flat) then
         adotoa=sqrt(grho/3)
@@ -2312,6 +2368,19 @@
     !  Photon equation of motion
     clxgdot=-k*(4._dl/3._dl*z+qg)
 
+    ! AniEDE edit
+    ca2 = weos - State%CP%n*(1._dl - weos)/6._dl 
+    weosp1 = 1._dl + weos
+
+    clxededot = -3._dl*adotoa*(State%CP%cphi2-weos)*clxede - (k2+9._dl*adotoa*adotoa*(State%CP%cphi2-ca2))*qede/k - weosp1*k*z
+    qededot = State%CP%cphi2*k*clxede -(1._dl-3._dl*(State%CP%cphi2-ca2+weos))*adotoa*qede - 2._dl*k*piede/3._dl
+    piededot = -3._dl*adotoa*(State%CP%cphi2-weos)*piede - 3._dl*k*State%CP%Asig*(qede+weosp1*sigma)/2._dl
+
+    ayprime(EV%ede_ix) = clxededot
+    ayprime(EV%ede_ix+1) = qededot
+    ayprime(EV%ede_ix+2) = piededot
+    !
+
     !Sources
     if (EV%Evolve_baryon_cs) then
         if (a > State%CP%Recomb%min_a_evolve_Tm) then
@@ -2361,7 +2430,8 @@
             !AL: First order slip seems to be fine here to 2e-4
 
             !  8*pi*G*a*a*SUM[rho_i*sigma_i]
-            dgs = grhog_t*pig+grhor_t*pir
+            ! AniEDE edit
+            dgs = grhog_t*pig+grhor_t*pir + grhoede_t*piede
 
             ! Define shear derivative to first order
             sigmadot = -2*adotoa*sigma-dgs/k+etak
@@ -2674,9 +2744,11 @@
             dgq_de=0
         end if
 
-        dgpi  = grhor_t*pir + grhog_t*pig
+        ! AniEDE edit
+        dgpi  = grhor_t*pir + grhog_t*pig + grhoede_t*piede
         dgpi_diff = 0  !sum (3*p_nu -rho_nu)*pi_nu
-        pidot_sum = grhog_t*pigdot + grhor_t*pirdot
+        ! AniEDE edit
+        pidot_sum = grhog_t*pigdot + grhor_t*pirdot + grhoede_t*piededot 
         clxnu =0
         if (State%CP%Num_Nu_Massive /= 0) then
             call MassiveNuVarsOut(EV,ay,ayprime,a, adotoa, dgpi=dgpi, clxnu_all=clxnu, &
@@ -2704,6 +2776,10 @@
             EV%OutputTransfer(Transfer_Newt_vel_cdm)=  -k*sigma/adotoa
             EV%OutputTransfer(Transfer_Newt_vel_baryon) = -k*(vb + sigma)/adotoa
             EV%OutputTransfer(Transfer_vel_baryon_cdm) = vb
+            ! AniEDE edit
+            EV%OutputTransfer(Transfer_ede) = clxede
+            EV%OutputTransfer(Transfer_qede) = qede
+            !
             if (State%CP%do21cm) then
                 Tspin = State%CP%Recomb%T_s(a)
                 xe = State%CP%Recomb%x_e(a)

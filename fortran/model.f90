@@ -137,6 +137,9 @@
         real(dl)  :: omk = 0._dl !Omega_K
         real(dl)  :: omnuh2 = 0._dl !massive neutino Omega_nu h^2
         real(dl)  :: H0 = 67._dl !Hubble parameter in km/s/Mpc
+        ! AniEDE edit
+        real(dl)  :: n, at, rphi, cperp2, cpara2, cphi2, Asig !Omede0
+        !
         real(dl)  :: TCMB = COBE_CMBTemp
         real(dl)  :: Yhe = 0.24_dl
         real(dl)  :: Num_Nu_massless = default_nnu

@@ -570,6 +570,13 @@
         write(*,'("Om_K                 = ",f9.6)') P%omk
         write(*,'("Om_m (inc Om_u)      = ",f9.6)') (P%ombh2+P%omch2+P%omnuh2)/h2
         write(*,'("100 theta (CosmoMC)  = ",f9.6)') 100*this%CosmomcTheta()
+        ! AniEDE edit
+        write(*,'("n                    = ",f9.6)') P%n
+        write(*,'("a_t                  = ",f9.6)') P%at
+        write(*,'("r_phi                = ",f9.6)') P%rphi
+        write(*,'("c_phi^2              = ",f9.6)') P%cphi2
+        write(*,'("A_sigma              = ",f9.6)') P%Asig
+        !
         if (this%CP%Num_Nu_Massive > 0) then
             write(*,'("N_eff (total)        = ",f9.6)') nu_massless_degeneracy + &
                 sum(this%CP%Nu_mass_degeneracies(1:this%CP%Nu_mass_eigenstates))
@@ -3041,19 +3048,22 @@
         ! total perturbations with and without neutrinos, with neutrinos+dark energy in the numerator
         Transfer_Weyl = 10, & ! the Weyl potential, for lensing and ISW
         Transfer_Newt_vel_cdm=11, Transfer_Newt_vel_baryon=12,   & ! -k v_Newtonian/H
-        Transfer_vel_baryon_cdm = 13 !relative velocity of baryons and CDM
+        ! AniEDE edit
+        Transfer_vel_baryon_cdm = 13, Transfer_ede = 14, Transfer_qede = 15
+        !
     !Sources
     !Alternatively for 21cm
     integer, parameter :: Transfer_monopole=4, Transfer_vnewt=5, Transfer_Tmat = 6
 
-    integer, parameter :: Transfer_max = Transfer_vel_baryon_cdm
+    !AniEDE edit
+    integer, parameter :: Transfer_max = Transfer_qede
     character(LEN=name_tag_len) :: Transfer_name_tags(Transfer_max-1) = &
         ['CDM     ', 'baryon  ', 'photon  ', 'nu      ', 'mass_nu ', 'total   ', &
-        'no_nu   ', 'total_de', 'Weyl    ', 'v_CDM   ', 'v_b     ', 'v_b-v_c ']
+        'no_nu   ', 'total_de', 'Weyl    ', 'v_CDM   ', 'v_b     ', 'v_b-v_c ', 'ede     ', 'qede    ']
     character(LEN=name_tag_len) :: Transfer21cm_name_tags(Transfer_max-1) = &
         ['CDM      ', 'baryon   ', 'photon   ', 'monopole ', 'v_newt   ', 'delta_T_g', &
-        'no_nu    ', 'total_de ', 'Weyl     ', 'v_CDM    ', 'v_b      ', 'v_b-v_c  ']
-
+        'no_nu    ', 'total_de ', 'Weyl     ', 'v_CDM    ', 'v_b      ', 'v_b-v_c  ', 'ede      ','qede     ']
+    !
     logical :: transfer_interp_matterpower  = .true. !output regular grid in log k
     !set to false to output calculated values for later interpolation
 

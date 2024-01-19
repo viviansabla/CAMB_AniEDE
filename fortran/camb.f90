@@ -424,6 +424,14 @@
         P%omch2 = Ini%Read_Double('omch2')
         P%omnuh2 = Ini%Read_Double('omnuh2')
         P%omk = Ini%Read_Double('omk')
+        ! AniEDE edit 
+        P%n = Ini%Read_Double('n_slope') !define ninv for cosmomc to go from 0 to 1 instead of 1 to infinity
+        P%at = 10**( Ini%Read_Double('log10at') )
+        P%rphi = Ini%Read_Double('rphi')
+        !P%cphi2 = Ini%Read_Double('cphi2')
+        !P%Asig = Ini%Read_Double('Asig')
+        P%cphi2 = 2._dl*Ini%Read_Double('cperp2')/3._dl + Ini%Read_Double('cpara2')/3._dl
+        P%Asig = 2._dl*(Ini%Read_Double('cperp2')-Ini%Read_Double('cpara2'))/3._dl    !
     else
         ErrMsg = 'use_physical = F no longer supported. Use ombh2, omch2, omnuh2, omk'
         return
